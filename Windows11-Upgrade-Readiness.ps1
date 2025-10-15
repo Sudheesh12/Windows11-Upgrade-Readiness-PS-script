@@ -5,12 +5,21 @@ $remoteComputer = Read-Host "Enter the remote computer name or IP"
 $cred = Get-Credential
 
 try {
-    # Get license key
+    # Get license key from WMI
     $licenseInfo = Get-WmiObject -ComputerName $remoteComputer -Query "select * from SoftwareLicensingService" -Credential $cred -ErrorAction Stop
     $licenseKey = $licenseInfo.OA3xOriginalProductKey
 
+    # Get BackupProductKeyDefault from remote registry using WMI (StdRegProv)
+    $regResult = Invoke-WmiMethod -Namespace root\default -ComputerName $remoteComputer -Class StdRegProv -Name GetStringValue `
+        -ArgumentList @(2147483650, "SOFTWARE\Microsoft\Windows NT\CurrentVersion\SoftwareProtectionPlatform", "BackupProductKeyDefault") -Credential $cred -ErrorAction SilentlyContinue
+    $backupKey = if ($regResult.ReturnValue -eq 0) { $regResult.sValue } else { "Not Found" }
+
     # Get OS details
     $osInfo = Get-WmiObject -ComputerName $remoteComputer -Class Win32_OperatingSystem -Credential $cred -ErrorAction Stop
+
+    # Get hostname info
+    $compSystem = Get-WmiObject -ComputerName $remoteComputer -Class Win32_ComputerSystem -Credential $cred -ErrorAction Stop
+    $hostname = $compSystem.Name
 
     # Get CPU info
     $cpuInfo = Get-WmiObject -ComputerName $remoteComputer -Class Win32_Processor -Credential $cred -ErrorAction Stop
@@ -41,18 +50,19 @@ try {
 
     # Prepare output
     $output = [PSCustomObject]@{
-        ComputerName       = $remoteComputer
-        LicenseKey         = if ([string]::IsNullOrEmpty($licenseKey)) {"Not Found"} else {$licenseKey}
-        OSName             = $osInfo.Caption
-        OSVersion          = $osInfo.Version
-        OSArchitecture     = $osInfo.OSArchitecture
-        CPU                = $cpuInfo.Name
-        CPU_Cores          = $cpuInfo.NumberOfCores
-        TotalRAM_GB        = $totalRamGB
-        FreeDiskSpace_GB   = $freeDiskGB
-        BIOSVersion        = $biosInfo.SMBIOSBIOSVersion
-        TPM_Enabled        = $TPM_Enabled
-        TPM_Activated      = $TPM_Activated
+        ComputerName            = $hostname
+        LicenseKey_WMI          = if ([string]::IsNullOrEmpty($licenseKey)) {"Not Found"} else {$licenseKey}
+        LicenseKey_Registry     = $backupKey
+        OSName                  = $osInfo.Caption
+        OSVersion               = $osInfo.Version
+        OSArchitecture          = $osInfo.OSArchitecture
+        CPU                     = $cpuInfo.Name
+        CPU_Cores               = $cpuInfo.NumberOfCores
+        TotalRAM_GB             = $totalRamGB
+        FreeDiskSpace_GB        = $freeDiskGB
+        BIOSVersion             = $biosInfo.SMBIOSBIOSVersion
+        TPM_Enabled             = $TPM_Enabled
+        TPM_Activated           = $TPM_Activated
     }
 
     # Display results
@@ -88,7 +98,6 @@ try {
         $compatible = $false
         $reasons += "Insufficient CPU cores (< 2)"
     }
-    # Additional checks like CPU model or Secure Boot could be added here
 
     if ($compatible) {
         Write-Output "`nComment: This computer is compatible for Windows 11 upgrade."
