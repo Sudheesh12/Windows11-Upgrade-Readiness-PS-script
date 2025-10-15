@@ -41,7 +41,7 @@ This PowerShell script remotely collects key system information from Windows 10 
 ## Example Output
 
 ComputerName : EXAMPLE-PC
-LicenseKey : W87N8-C8QR6-9KGKB-7QPTV-VT986
+LicenseKey : ****-****-****-****
 OSName : Microsoft Windows 10 Pro
 OSVersion : 10.0.19044
 OSArchitecture : 64-bit
